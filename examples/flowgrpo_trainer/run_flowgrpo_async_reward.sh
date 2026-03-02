@@ -49,7 +49,7 @@ CUDA_VISIBLE_DEVICES=1,2,3,4 python3 -m verl.trainer.main_ppo --config-path=conf
     actor_rollout_ref.rollout.load_format=safetensors \
     actor_rollout_ref.rollout.layered_summon=True \
     actor_rollout_ref.rollout.max_model_len=1058 \
-    actor_rollout_ref.rollout.noise_level=1.0 \
+    actor_rollout_ref.rollout.noise_level=1.2 \
     actor_rollout_ref.rollout.sde_window_size=2 \
     actor_rollout_ref.rollout.sde_window_range="[0,5]" \
     actor_rollout_ref.rollout.val_kwargs.num_inference_steps=50 \

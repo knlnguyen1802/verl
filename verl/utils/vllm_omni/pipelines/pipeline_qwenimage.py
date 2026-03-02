@@ -153,6 +153,7 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
         sde_window,
         sde_type,
         generator,
+        logprobs,
     ):
         all_latents = []
         all_log_probs = []
@@ -215,6 +216,7 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
                 generator=generator,
                 noise_level=cur_noise_level,
                 sde_type=sde_type,
+                logprobs=logprobs,
                 return_dict=False,
             )
 
@@ -224,7 +226,12 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
                 all_timesteps.append(t)
 
         all_latents = torch.stack(all_latents, dim=1)
-        all_log_probs = torch.stack(all_log_probs, dim=1)
+
+        if all_log_probs[0] is not None:
+            all_log_probs = torch.stack(all_log_probs, dim=1)
+        else:
+            all_log_probs = None
+
         all_timesteps = torch.stack(all_timesteps).unsqueeze(0).expand(latents.shape[0], -1)
 
         return latents, all_latents, all_log_probs, all_timesteps
@@ -257,6 +264,7 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
         sde_window_size: int | None = None,
         sde_window_range: tuple[int, int] = (0, 5),
         sde_type: Literal["sde", "cps"] = "sde",
+        logprobs: bool = True,
     ) -> DiffusionOutput:
         # # TODO: only support single prompt now
         # if req.prompt is not None:
@@ -276,6 +284,7 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
         sde_window_size = req.extra_args.get("sde_window_size", None) or sde_window_size
         sde_window_range = req.extra_args.get("sde_window_range", None) or sde_window_range
         sde_type = req.extra_args.get("sde_type", None) or sde_type
+        logprobs = req.extra_args.get("logprobs", None)
 
         generator = req.generator or generator
         if generator is None and req.seed is not None:
@@ -385,6 +394,7 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
             sde_window,
             sde_type,
             generator,
+            logprobs,
         )
 
         self._current_timestep = None

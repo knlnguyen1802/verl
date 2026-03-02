@@ -43,6 +43,8 @@ def init_config() -> DictConfig:
     config.actor_rollout_ref.rollout.noise_level = 1.0
     config.actor_rollout_ref.rollout.sde_window_size = 2
     config.actor_rollout_ref.rollout.sde_window_range = [0, 5]
+    config.actor_rollout_ref.rollout.calculate_log_probs = True
+    config.actor_rollout_ref.rollout.nnodes = 1
 
     qwen_pipeline = "verl.utils.vllm_omni.pipelines.QwenImagePipelineWithLogProb"
     config.actor_rollout_ref.rollout.engine_kwargs.vllm_omni = {"custom_pipeline": qwen_pipeline}
@@ -73,7 +75,7 @@ def test_single_turn(init_config):
         }
     )
 
-    agent_loop_manager = AgentLoopManager(init_config)
+    agent_loop_manager = AgentLoopManager.create(init_config)
 
     system_prompt = (
         "Describe the image by detailing the color, shape, size, texture, quantity, text, "
@@ -120,9 +122,10 @@ def test_single_turn(init_config):
         "prompt_embeds_mask",
         "input_ids",
         "attention_mask",
+        "rollout_log_probs",
     ]
     for key in expected_batch_keys:
-        assert key in result.batch, f"Key {key} not found in result batch."
+        assert key in result.batch, f"Key {key} not found in result batch with keys {list(result.batch.keys())}."
 
     # check turns
     num_turns = result.non_tensor_batch["__num_turns__"]
