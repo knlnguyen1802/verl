@@ -322,6 +322,8 @@ class RayPPOTrainer:
 
         self.tq_client = self._initialize_transferqueue()
 
+        self.checkpoint_manager = None
+
     def _initialize_transferqueue(self):
         # 1. initialize TransferQueueStorage
         if self.config.transfer_queue.storage_backend == "AsyncSimpleStorageManager":
@@ -815,14 +817,14 @@ class RayPPOTrainer:
             reward_loop_worker_handles = (
                 self.reward_loop_manager.reward_loop_workers if enable_agent_reward_loop else None
             )
-            self.async_rollout_manager = AgentLoopManager(
+            self.async_rollout_manager = AgentLoopManager.create(
                 config=self.config,
                 worker_group=self.actor_rollout_wg,
                 reward_loop_worker_handles=reward_loop_worker_handles,
             )
 
             self.checkpoint_manager = CheckpointEngineManager(
-                backend=self.config.actor_rollout_ref.rollout.checkpoint_engine.backend,
+                config=omega_conf_to_dataclass(self.config.actor_rollout_ref.rollout.checkpoint_engine),
                 trainer=self.actor_rollout_wg,
                 replicas=self.async_rollout_manager.rollout_replicas,
             )
