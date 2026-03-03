@@ -25,7 +25,7 @@ from typing import Any, Callable, Literal, TypedDict, get_args
 
 import torch
 import zmq
-from vllm_omni.diffusion.worker.gpu_worker import CustomPipelineWorkerExtension
+from vllm_omni.diffusion.worker.diffusion_worker import CustomPipelineWorkerExtension
 
 from verl.utils.device import get_torch_device, is_npu_available
 from verl.utils.vllm import OmniTensorLoRARequest, TensorLoRARequest, VLLMHijack, VLLMOmniHijack
