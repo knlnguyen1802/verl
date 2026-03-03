@@ -304,8 +304,12 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
             if isinstance(prompt_ids, list):
                 prompt_ids = torch.tensor(prompt_ids, device=self.device)
             batch_size = prompt_ids.shape[0] if prompt_ids.ndim == 2 else 1
-        else:
+        elif prompt_embeds is not None:
             batch_size = prompt_embeds.shape[0]
+        else:
+            # Both prompt_ids and prompt_embeds are None (e.g. during warmup/dummy run).
+            # Return a minimal dummy output to avoid crashing.
+            return DiffusionOutput(output=None, custom_output={})
 
         if isinstance(negative_prompt_ids, list):
             negative_prompt_ids = torch.tensor(negative_prompt_ids, device=self.device)
