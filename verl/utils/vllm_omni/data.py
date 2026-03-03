@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import torch
@@ -24,13 +24,6 @@ class DiffusionOutput:
     """
 
     output: torch.Tensor | None = None
-    all_latents: torch.Tensor | None = None
-    all_log_probs: torch.Tensor | None = None
-    all_timesteps: torch.Tensor | None = None
-    prompt_embeds: torch.Tensor | None = None
-    prompt_embeds_mask: torch.Tensor | None = None
-    negative_prompt_embeds: torch.Tensor | None = None
-    negative_prompt_embeds_mask: torch.Tensor | None = None
 
     # default variables
     trajectory_timesteps: list[torch.Tensor] | None = None
@@ -38,3 +31,7 @@ class DiffusionOutput:
     trajectory_decoded: list[torch.Tensor] | None = None
     error: str | None = None
     post_process_func: Callable[..., Any] | None = None
+
+    # Extra custom output data (e.g. latent trajectories, prompt embeds)
+    # passed through to OmniRequestOutput.custom_output via DiffusionEngine
+    custom_output: dict[str, Any] = field(default_factory=dict)
