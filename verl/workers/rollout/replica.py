@@ -26,9 +26,14 @@ from ray.actor import ActorHandle
 from verl.single_controller.ray import RayClassWithInitArgs, RayResourcePool, RayWorkerGroup, ResourcePoolManager
 from verl.utils.config import omega_conf_to_dataclass
 from verl.utils.device import is_torch_npu_available
-from verl.workers.config import HFModelConfig, RolloutConfig
+from verl.workers.config import DiffusionRolloutConfig, HFModelConfig, RolloutConfig
 
 logger = logging.getLogger(__file__)
+
+
+# Max number of concurrent calls to the methods of Rollout,
+# excluding calls to generate method.
+CONTROL_METHOD_CONCURRENCY = 16
 
 
 class TokenOutput(BaseModel):
@@ -99,13 +104,13 @@ class RolloutReplica(ABC):
     def __init__(
         self,
         replica_rank: int,
-        config: RolloutConfig,
+        config: RolloutConfig | DiffusionRolloutConfig,
         model_config: DictConfig,
         gpus_per_node: int = 8,
         is_reward_model: bool = False,
     ) -> None:
         self.replica_rank = replica_rank
-        self.config = omega_conf_to_dataclass(config)
+        self.config: RolloutConfig | DiffusionRolloutConfig = omega_conf_to_dataclass(config)
         self.model_config: HFModelConfig = model_config
 
         self.world_size = (
@@ -241,6 +246,12 @@ class RolloutReplica(ABC):
     def server_handle(self) -> ActorHandle:
         """Get rollout server handle for Token-in-token-out generation."""
         return self._server_handle
+
+    @property
+    def max_concurrency(self) -> int:
+        # 1000 is Ray's default max_concurrency for async execution.
+        # Add some margin to account for control method call.
+        return max(1000, self.config.max_num_seqs + CONTROL_METHOD_CONCURRENCY)
 
     def rollout_worker_use_gpu(self) -> bool:
         return True
