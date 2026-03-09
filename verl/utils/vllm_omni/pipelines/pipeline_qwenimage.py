@@ -24,7 +24,7 @@ from vllm_omni.diffusion.models.qwen_image import QwenImagePipeline
 from vllm_omni.diffusion.request import OmniDiffusionRequest
 
 from verl.utils.diffusers.schedulers import FlowMatchSDEDiscreteScheduler
-from verl.utils.vllm_omni.data import DiffusionOutput
+from vllm_omni.diffusion.data import DiffusionOutput
 from verl.utils.vllm_omni.pipelines.qwen_image.qwen_image_transformer import QwenImageTransformer2DModelFixed
 
 

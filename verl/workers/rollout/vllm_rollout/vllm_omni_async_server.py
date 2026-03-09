@@ -28,8 +28,7 @@ from vllm.utils.argparse_utils import FlexibleArgumentParser
 from vllm_omni.diffusion.request import OmniDiffusionRequest
 from vllm_omni.engine.arg_utils import AsyncOmniEngineArgs
 from vllm_omni.entrypoints import AsyncOmni
-from vllm.entrypoints.openai.api_server import build_app
-from vllm_omni.entrypoints.openai.api_server import omni_init_app_state
+from vllm_omni.entrypoints.openai.api_server import build_app, omni_init_app_state
 from vllm_omni.inputs.data import OmniCustomPrompt, OmniDiffusionSamplingParams
 from vllm_omni.lora.request import LoRARequest
 from vllm_omni.outputs import OmniRequestOutput
@@ -410,23 +409,24 @@ class vLLMOmniHttpServer:
             custom_prompt["extra_args"] = {"multi_modal_data": multi_modal_data}
 
         # Build OmniDiffusionSamplingParams from the incoming dict
-        sp_kwargs: dict[str, Any] = {}
+        sampling_kwargs: dict[str, Any] = {}
         extra_args: dict[str, Any] = {}
         for k, v in sampling_params.items():
             if hasattr(OmniDiffusionSamplingParams, k):
-                sp_kwargs[k] = v
+                sampling_kwargs[k] = v
             else:
                 extra_args[k] = v
-        sp_kwargs["extra_args"] = extra_args
+        sampling_kwargs["extra_args"] = extra_args
         if lora_request is not None:
-            sp_kwargs["lora_request"] = lora_request
-        diffusion_sp = OmniDiffusionSamplingParams(**sp_kwargs)
+            sampling_kwargs["lora_request"] = lora_request
+        diffusion_sampling_params = OmniDiffusionSamplingParams(**sampling_kwargs)
 
         # Call AsyncOmni.generate() with the correct API
         generator = self.engine.generate(
             prompt=custom_prompt,
             request_id=request_id,
-            sampling_params_list=[diffusion_sp],
+            priority=priority,
+            sampling_params_list=[diffusion_sampling_params],
         )
 
         # Get final response
@@ -473,8 +473,10 @@ class vLLMOmniHttpServer:
         }
 
         # Determine stop reason from finish_reason
-        # TODO (mike): drop hard code
-        finish_reason = "stop"
+        if final_res.request_output is not None and hasattr(final_res.request_output, "finish_reason"):
+            finish_reason = final_res.request_output.finish_reason or "stop"
+        else:
+            finish_reason = "stop"
         if finish_reason == "abort":
             stop_reason = "aborted"
         elif finish_reason in ("stop", "length"):
