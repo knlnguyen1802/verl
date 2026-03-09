@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+from dataclasses import asdict
 from pprint import pprint
 from typing import Any, Callable, Optional
 
@@ -37,6 +38,7 @@ from verl.utils.config import omega_conf_to_dataclass
 from verl.utils.device import get_resource_name, get_visible_devices_keyword
 from verl.utils.net_utils import get_free_port, is_valid_ipv6_address
 from verl.utils.profiler import DistProfiler
+from verl.utils.tokenizer import normalize_token_ids
 from verl.workers.config import DiffusersModelConfig, DiffusionRolloutConfig
 from verl.workers.rollout.replica import ImageOutput, RolloutMode, RolloutReplica
 from verl.workers.rollout.utils import run_uvicorn
@@ -345,22 +347,16 @@ class vLLMOmniHttpServer:
 
     async def run_server(self, args: argparse.Namespace):
         engine_args = AsyncOmniEngineArgs.from_cli_args(args)
-
-        kwargs = {
-            "model": engine_args.model,
-            "enable_sleep_mode": engine_args.enable_sleep_mode,
-            "worker_extension_cls": engine_args.worker_extension_cls,
-            "enforce_eager": engine_args.enforce_eager,
-        }
+        engine_args = asdict(engine_args)
 
         # TODO (mike): read custom_pipeline from CLI
         custom_pipeline = self.config.engine_kwargs.get("vllm_omni", {}).get("custom_pipeline", None)
         if custom_pipeline is not None:
-            kwargs["enable_dummy_pipeline"] = True
-            kwargs["custom_pipeline_args"] = {"pipeline_class": custom_pipeline}
+            engine_args["enable_dummy_pipeline"] = True
+            engine_args["custom_pipeline_args"] = {"pipeline_class": custom_pipeline}
 
         # TODO (mike): support parsing engine config from CLI
-        engine_client = AsyncOmni(**kwargs)
+        engine_client = AsyncOmni(**engine_args)
         app = build_app(args)
         await omni_init_app_state(engine_client, app.state, args)
 
@@ -385,6 +381,8 @@ class vLLMOmniHttpServer:
         priority: int = 0,
     ) -> ImageOutput:
         """Generate sequence with token-in-image-out."""
+        prompt_ids = normalize_token_ids(prompt_ids)
+
         multi_modal_data = {}
         if image_data is not None:
             multi_modal_data["image"] = image_data
@@ -693,6 +691,7 @@ class vLLMOmniReplica(RolloutReplica):
                     }
                 },
                 name=name,
+                max_concurrency=self.max_concurrency,
             ).remote(
                 config=self.config,
                 model_config=self.model_config,

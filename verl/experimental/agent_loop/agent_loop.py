@@ -46,7 +46,7 @@ from verl.utils.rollout_trace import (
     rollout_trace_attr,
     rollout_trace_op,
 )
-from verl.utils.transferqueue_utils import tqbridge
+from verl.utils.tokenizer import normalize_token_ids
 from verl.workers.config import DiffusersModelConfig, HFModelConfig, RolloutConfig
 from verl.workers.rollout.replica import ImageOutput, TokenOutput, get_rollout_replica_class
 
@@ -343,9 +343,9 @@ class AgentLoopBase(ABC):
                 return_tensors="pt",
                 do_sample_frames=False,
             )
-            prompt_ids = model_inputs.pop("input_ids").squeeze(0).tolist()
+            prompt_ids = normalize_token_ids(model_inputs.pop("input_ids"))
         else:
-            prompt_ids = await self.loop.run_in_executor(
+            tokenized_prompt = await self.loop.run_in_executor(
                 None,
                 lambda: self.tokenizer.apply_chat_template(
                     messages,
@@ -355,6 +355,7 @@ class AgentLoopBase(ABC):
                     **self.apply_chat_template_kwargs,
                 ),
             )
+            prompt_ids = normalize_token_ids(tokenized_prompt)
 
         if remove_system_prompt:
             prompt_ids = prompt_ids[len(self.system_prompt) :]
@@ -444,7 +445,6 @@ class AgentLoopWorker:
             trace_config.get("max_samples_per_step_per_worker", None),
         )
 
-    @tqbridge()
     async def generate_sequences(self, batch: DataProto) -> DataProto:
         """Generate sequences from agent loop.
 
@@ -861,20 +861,6 @@ class AgentLoopWorker:
             meta_info=meta_info,
         )
 
-    def create_transferqueue_client(
-        self,
-    ):
-        """Create a client for data system (TransferQueue)."""
-        from verl.single_controller.ray.base import get_random_string
-        from verl.utils.transferqueue_utils import create_transferqueue_client
-
-        client_name = get_random_string(length=6)
-
-        self.tq_client = create_transferqueue_client(
-            client_id=f"AgentLoopWorker_{client_name}",
-            config=self.config.transfer_queue,
-        )
-
 
 class DiffusionAgentLoopWorker:
     """Diffusion Agent loop worker takes a batch of messages and run each message in an agent loop.
@@ -926,7 +912,6 @@ class DiffusionAgentLoopWorker:
             trace_config.get("max_samples_per_step_per_worker", None),
         )
 
-    @tqbridge()
     async def generate_sequences(self, batch: DataProto) -> DataProto:
         """Generate sequences from agent loop.
 
@@ -1227,20 +1212,6 @@ class DiffusionAgentLoopWorker:
             batch=batch,
             non_tensor_batch=non_tensor_batch,
             meta_info=meta_info,
-        )
-
-    def create_transferqueue_client(
-        self,
-    ):
-        """Create a client for data system (TransferQueue)."""
-        from verl.single_controller.ray.base import get_random_string
-        from verl.utils.transferqueue_utils import create_transferqueue_client
-
-        client_name = get_random_string(length=6)
-
-        self.tq_client = create_transferqueue_client(
-            client_id=f"DiffusionAgentLoopWorker_{client_name}",
-            config=self.config.transfer_queue,
         )
 
 
