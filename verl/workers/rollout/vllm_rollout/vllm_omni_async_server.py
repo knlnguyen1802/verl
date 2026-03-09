@@ -29,7 +29,8 @@ from vllm.utils.argparse_utils import FlexibleArgumentParser
 from vllm_omni.diffusion.request import OmniDiffusionRequest
 from vllm_omni.engine.arg_utils import AsyncOmniEngineArgs
 from vllm_omni.entrypoints import AsyncOmni
-from vllm_omni.entrypoints.openai.api_server import build_app, omni_init_app_state
+from vllm_omni.entrypoints.openai.api_server import omni_init_app_state
+from vllm.entrypoints.openai.api_server import build_app
 from vllm_omni.inputs.data import OmniCustomPrompt, OmniDiffusionSamplingParams
 from vllm_omni.lora.request import LoRARequest
 from vllm_omni.outputs import OmniRequestOutput
@@ -423,7 +424,6 @@ class vLLMOmniHttpServer:
         generator = self.engine.generate(
             prompt=custom_prompt,
             request_id=request_id,
-            priority=priority,
             sampling_params_list=[diffusion_sampling_params],
         )
 
