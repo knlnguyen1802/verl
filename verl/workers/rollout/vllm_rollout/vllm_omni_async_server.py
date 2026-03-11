@@ -651,28 +651,61 @@ class vLLMOmniReplica(RolloutReplica):
             f"worker number {len(self.workers)} not equal to world size {self.world_size}"
         )
 
-        # get (node_id, CUDA_VISIBLE_DEVICES) of all workers
+        visible_devices_keyword = get_visible_devices_keyword()
+
+        # get (node_id, visible devices, accelerator id) of all workers
         worker_infos = await asyncio.gather(
             *[
                 worker.__ray_call__.remote(
                     lambda self: (
                         ray.get_runtime_context().get_node_id(),
-                        ray.get_runtime_context().get_accelerator_ids()[get_resource_name()][0],
+                        os.environ.get(visible_devices_keyword, ""),
+                        ray.get_runtime_context().get_accelerator_ids().get(get_resource_name(), [None])[0],
                     )
                 )
                 for worker in self.workers
             ]
         )
-        worker_cuda_visible_devices = [worker_info[1] for worker_info in worker_infos]
+        worker_visible_devices = [worker_info[1] for worker_info in worker_infos]
+        worker_accelerator_ids = [worker_info[2] for worker_info in worker_infos]
         worker_node_ids = [worker_info[0] for worker_info in worker_infos]
 
         # create server actor in each node with node affinity and cuda visible devices
         nnodes, gpus_per_replica_node = self.nnodes, self.gpus_per_replica_node
         for node_rank in range(nnodes):
             workers = self.workers[node_rank * gpus_per_replica_node : (node_rank + 1) * gpus_per_replica_node]
-            node_cuda_visible_devices = ",".join(
-                worker_cuda_visible_devices[node_rank * gpus_per_replica_node : (node_rank + 1) * gpus_per_replica_node]
-            )
+
+            # Build a robust visible device list for this node. Prefer each worker's
+            # own visible-device env var (can be comma-separated), fallback to Ray
+            # accelerator id when env var is absent.
+            node_worker_visible = worker_visible_devices[
+                node_rank * gpus_per_replica_node : (node_rank + 1) * gpus_per_replica_node
+            ]
+            node_worker_accelerators = worker_accelerator_ids[
+                node_rank * gpus_per_replica_node : (node_rank + 1) * gpus_per_replica_node
+            ]
+
+            node_device_ids: list[str] = []
+            for vis, acc in zip(node_worker_visible, node_worker_accelerators):
+                if vis:
+                    for device in str(vis).split(","):
+                        device = device.strip()
+                        if device and device not in node_device_ids:
+                            node_device_ids.append(device)
+                elif acc is not None:
+                    acc_id = str(acc).strip()
+                    if acc_id and acc_id not in node_device_ids:
+                        node_device_ids.append(acc_id)
+
+            if len(node_device_ids) < gpus_per_replica_node:
+                raise RuntimeError(
+                    "Insufficient distinct devices for vLLM-Omni server on node "
+                    f"{node_rank}: need {gpus_per_replica_node}, got {len(node_device_ids)}. "
+                    f"worker_visible_devices={node_worker_visible}, worker_accelerator_ids={node_worker_accelerators}. "
+                    "This often leads to CUDA invalid device ordinal under TP>1."
+                )
+
+            node_cuda_visible_devices = ",".join(node_device_ids)
             node_id = worker_node_ids[node_rank * gpus_per_replica_node]
             name = (
                 f"vllm_omni_server_{self.replica_rank}_{node_rank}"
