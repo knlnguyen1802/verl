@@ -101,7 +101,7 @@ def _build_minimal_vllm_omni_mocks():
     engine_args_mod = _add("vllm_omni.engine.arg_utils")
     engine_args_mod.AsyncOmniEngineArgs = MagicMock()
 
-    inputs_mod = _add("vllm_omni.inputs")
+    _ = _add("vllm_omni.inputs")
     data_mod = _add("vllm_omni.inputs.data")
     data_mod.OmniCustomPrompt = dict
     data_mod.OmniDiffusionSamplingParams = MagicMock()
