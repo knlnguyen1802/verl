@@ -117,20 +117,24 @@ class vLLMHttpServer(BaseVLLMHttpServer):
         # Handle QAT (Quantization-Aware Training) configuration
         qat_config_dict = getattr(self.config, "qat", {}) or {}
         if qat_config_dict.get("enable", False):
+            # QAT uses compressed-tensors quantization, apply patches for dynamic weight loading
             from verl.utils.qat import QATConfig, apply_qat_patches, load_quantization_config
 
             apply_qat_patches()
+            # Load quantization config from JSON file
             qat_config = QATConfig(**qat_config_dict)
             quantization_config_dict = load_quantization_config(qat_config)
             hf_overrides["quantization_config"] = quantization_config_dict
             quantization = "compressed-tensors"
             logger.info("QAT quantization config injected to vLLM async server")
         elif quantization is not None:
+            # Handle other quantization methods (fp8, torchao)
             _SUPPORTED_QUANTIZATION = ["fp8", "torchao"]
             if quantization not in _SUPPORTED_QUANTIZATION:
                 raise ValueError(f"Currently only support {_SUPPORTED_QUANTIZATION} quantization, got: {quantization}")
 
             if quantization == "fp8":
+                # Ignore MoE router layers for FP8 quantization
                 all_mlp_gate_layers = []
                 for layer in range(self.model_config.hf_config.num_hidden_layers):
                     all_mlp_gate_layers.append(f"model.layers.{layer}.mlp.gate")
@@ -142,7 +146,10 @@ class vLLMHttpServer(BaseVLLMHttpServer):
                     "ignored_layers": all_mlp_gate_layers,
                 }
                 hf_overrides["quantization_config"] = dict(FP8_BLOCK_QUANT_KWARGS)
+                # Apply vllm fp8 patches
+                # Will remove the patch after vllm support on-the-fly quant for rollout natively.
                 apply_vllm_fp8_patches()
+                # for subprocesses patching
                 os.environ["VERL_VLLM_FP8_QUANT_ENABLED"] = "1"
 
         if quantization is not None and self.config.quantization_config_file is not None:
@@ -160,6 +167,7 @@ class vLLMHttpServer(BaseVLLMHttpServer):
             self.profiler_controller.config, self.profiler_controller.tool_config, self.replica_rank
         )
         if _VLLM_VERSION >= version.parse("0.13.0"):
+            # vLLM >= 0.13.0 supports profiler config via CLI args; env vars still work but will be deprecated
             args.update(profiler_args)
         # MTP / speculative decoding
         if self.config.mtp.enable and self.config.mtp.enable_rollout:
@@ -218,6 +226,8 @@ class vLLMHttpServer(BaseVLLMHttpServer):
 
     async def run_headless(self, args: argparse.Namespace):
         """Run headless server in a separate thread."""
+        if hasattr(args, "api_server_count"):
+            args.api_server_count = 0
 
         def run_headless_wrapper():
             with SuppressSignalInThread():
@@ -266,12 +276,11 @@ class vLLMHttpServer(BaseVLLMHttpServer):
             # support sglang-style 'max_new_tokens' param
             max_tokens = sampling_params.pop("max_new_tokens")
         else:
-            # Default to a calculation that considers configured lengths.
+            # Default to a calculation that considers configured lengths
             # Cap max_tokens by response_length to ensure tensor alignment,
             # and by remaining budget to prevent OOM in multi-turn rollouts.
             max_tokens = min(
-                self.config.response_length,
-                self.config.prompt_length + self.config.response_length - len(prompt_ids),
+                self.config.response_length, self.config.prompt_length + self.config.response_length - len(prompt_ids)
             )
 
         # Clamp max_tokens to the valid range [0, max_possible_tokens]
@@ -345,7 +354,7 @@ class vLLMHttpServer(BaseVLLMHttpServer):
             routed_experts=routed_experts,
             stop_reason=stop_reason,
             num_preempted=num_preempted,
-            extra_info={"global_steps": self.global_steps},
+            extra_fields={"global_steps": self.global_steps},
         )
 
     # -----------------------------------------------------------------------
@@ -370,14 +379,27 @@ class vLLMHttpServer(BaseVLLMHttpServer):
     async def abort_all_requests(self, reset_prefix_cache: bool = True) -> dict[str, Any]:
         """Abort all ongoing generation requests.
 
-        On vLLM >= 0.12.0, uses AsyncLLM.pause_generation() which atomically
-        pauses the engine and drains all in-flight requests.
-        On older versions, falls back to the low-level output-processor path
-        provided by the base class.
+        On vLLM >= 0.12.0, uses AsyncLLM.pause_generation() to abort in-flight
+        requests, drain, and clear caches. The engine remains paused after this
+        call — use resume_generation() to accept new requests (e.g. before
+        validation).
+
+        On vLLM < 0.12.0, manually aborts each request and resets prefix cache.
+
+        Returns:
+            dict[str, Any]: Dictionary containing:
+                - aborted_count: Number of requests aborted
+                - request_ids: List of aborted request IDs
         """
         try:
             if _VLLM_VERSION >= version.parse("0.12.0"):
+                # Snapshot request IDs before pausing for reporting
                 request_ids = list(self.engine.output_processor.request_states.keys())
+                # pause_generation with wait_for_inflight_requests=False will:
+                # 1. Set engine to paused state (blocks new generate calls)
+                # 2. Abort all in-flight requests
+                # 3. Wait for requests to drain
+                # 4. Clear prefix and mm caches if clear_cache=True
                 await self.engine.pause_generation(
                     wait_for_inflight_requests=False,
                     clear_cache=reset_prefix_cache,
@@ -391,7 +413,11 @@ class vLLMHttpServer(BaseVLLMHttpServer):
             return {"aborted_count": 0, "request_ids": [], "error": str(e)}
 
     async def resume_generation(self):
-        """Resume generation after pause_generation (vLLM >= 0.12.0). No-op otherwise."""
+        """Resume generation after abort_all_requests (pause_generation).
+
+        Only effective on vLLM >= 0.12.0 where pause_generation is used.
+        No-op on older versions.
+        """
         if self.node_rank != 0:
             return
         if _VLLM_VERSION >= version.parse("0.12.0"):
