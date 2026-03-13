@@ -30,7 +30,9 @@ from verl.utils.vllm.vllm_fp8_utils import apply_vllm_fp8_patches, is_fp8_model,
 
 try:
     from vllm_omni.diffusion.worker.diffusion_worker import CustomPipelineWorkerExtension
+
     from verl.utils.vllm_omni import OmniTensorLoRARequest, VLLMOmniHijack
+
     _VLLM_OMNI_AVAILABLE = True
 except ImportError:  # vllm_omni and related utilities are optional
     CustomPipelineWorkerExtension = None  # type: ignore[assignment]
