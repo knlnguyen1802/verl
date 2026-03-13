@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
 
 from omegaconf import MISSING
 
@@ -23,6 +23,7 @@ from verl.workers.config.model import MtpConfig
 
 __all__ = [
     "SamplingConfig",
+    "DiffusionSamplingConfig",
     "MultiTurnConfig",
     "CustomAsyncServerConfig",
     "AgentLoopConfig",
@@ -30,6 +31,7 @@ __all__ = [
     "ServerConfig",
     "PrometheusConfig",
     "RolloutConfig",
+    "DiffusionRolloutConfig",
     "CheckpointEngineConfig",
 ]
 
@@ -41,6 +43,15 @@ class SamplingConfig(BaseConfig):
     top_p: float = 1.0
     do_sample: bool = True
     n: int = 1
+
+
+@dataclass
+class DiffusionSamplingConfig(BaseConfig):
+    do_sample: bool = True
+    n: int = 1
+    noise_level: float = 0.0
+    num_inference_steps: int = 40
+    seed: int = 42
 
 
 @dataclass
@@ -291,3 +302,36 @@ class RolloutConfig(BaseConfig):
                 raise NotImplementedError(
                     f"Current rollout {self.name=} not implemented pipeline_model_parallel_size > 1 yet."
                 )
+
+
+@dataclass
+class DiffusionRolloutConfig(RolloutConfig):
+    _mutable_fields = {"max_model_len", "load_format"}
+
+    val_kwargs: DiffusionSamplingConfig = field(default_factory=DiffusionSamplingConfig)
+
+    # diffusion use
+    image_height: int = 512
+
+    image_width: int = 512
+
+    num_inference_steps: int = 10
+
+    noise_level: float = 0.7
+
+    guidance_scale: float = 4.5
+
+    sde_type: Literal["sde", "cps"] = "sde"
+
+    sde_window_size: Optional[int] = None
+
+    sde_window_range: Optional[tuple[int, int]] = None
+
+    def __post_init__(self):
+        """Validate diffusion rollout config"""
+        super().__post_init__()
+
+        if self.pipeline_model_parallel_size > 1 and self.name == "vllm_omni":
+            raise NotImplementedError(
+                f"Current rollout {self.name=} not implemented pipeline_model_parallel_size > 1 yet."
+            )
