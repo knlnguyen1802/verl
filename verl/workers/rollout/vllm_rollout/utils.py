@@ -25,9 +25,10 @@ import torch
 from vllm_omni.diffusion.worker.diffusion_worker import CustomPipelineWorkerExtension
 
 from verl.utils.device import is_npu_available
-from verl.utils.vllm import OmniTensorLoRARequest, TensorLoRARequest, VLLMHijack, VLLMOmniHijack
+from verl.utils.vllm import TensorLoRARequest, VLLMHijack
 from verl.utils.vllm.patch import patch_vllm_moe_model_weight_loader
 from verl.utils.vllm.vllm_fp8_utils import apply_vllm_fp8_patches, is_fp8_model, load_quanted_weights
+from verl.utils.vllm_omni import OmniTensorLoRARequest, VLLMOmniHijack
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))

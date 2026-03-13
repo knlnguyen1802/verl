@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import asyncio
 import logging
 from dataclasses import asdict
 from typing import Any, Optional
@@ -30,7 +29,7 @@ from vllm_omni.outputs import OmniRequestOutput
 
 from verl.utils.tokenizer import normalize_token_ids
 from verl.workers.config import DiffusersModelConfig, DiffusionRolloutConfig
-from verl.workers.rollout.replica import ImageOutput, RolloutMode
+from verl.workers.rollout.replica import ImageOutput
 from verl.workers.rollout.utils import run_uvicorn
 from verl.workers.rollout.vllm_rollout.utils import (
     VLLM_LORA_INT_ID,
@@ -229,100 +228,6 @@ class vLLMOmniHttpServer(BaseVLLMHttpServer):
             num_preempted=num_preempted,
             extra_info=extra_info,
         )
-
-    # -----------------------------------------------------------------------
-    # Abort / lifecycle overrides
-    # -----------------------------------------------------------------------
-
-    async def abort_all_requests(self, reset_prefix_cache: bool = True) -> dict[str, Any]:
-        """Abort all ongoing generation requests.
-
-        Returns:
-            dict[str, Any]: Dictionary containing:
-                - aborted_count: Number of requests aborted
-                - request_ids: List of aborted request IDs
-        """
-        try:
-            # Take an atomic snapshot to avoid race conditions with the vLLM engine thread
-            request_states_snapshot = list(self.engine.output_processor.request_states.items())
-            request_ids = [req_id for req_id, _ in request_states_snapshot]
-
-            if not request_ids:
-                return {"aborted_count": 0, "request_ids": []}
-
-            # For each request, create an abort output and put it to its queue
-            # This allows the generator to receive the aborted result
-            from vllm.v1.engine import FinishReason
-
-            for _, req_state in request_states_snapshot:
-                request_output = req_state.make_request_output(
-                    [], pooling_output=None, finish_reason=FinishReason.ABORT, stop_reason=None
-                )
-                req_state.queue.put(request_output)
-
-            # Abort requests in the output processor and engine core
-            self.engine.output_processor.abort_requests(request_ids)
-            await self.engine.engine_core.abort_requests_async(request_ids)
-
-            # Try to reset prefix cache to ensure clean state
-            if reset_prefix_cache:
-                await self.clear_kv_cache()
-                logger.info("Prefix cache reset after abort")
-
-            logger.info(f"Aborted {len(request_ids)} requests: {request_ids}")
-            return {"aborted_count": len(request_ids), "request_ids": request_ids}
-
-        except Exception as e:
-            logger.error(f"Error aborting requests: {e}")
-            return {"aborted_count": 0, "request_ids": [], "error": str(e)}
-
-    async def resume_generation(self):
-        """Resume generation after abort_all_requests (pause_generation).
-
-        # TODO (mike): no usage now
-        """
-        if self.node_rank != 0:
-            return
-
-    async def abort_request(self, request_id: str, reset_prefix_cache: bool = True) -> dict[str, Any]:
-        """Abort a specific generation request.
-
-        Args:
-            request_id: The ID of the request to abort.
-
-        Returns:
-            dict[str, Any]: Dictionary containing abort result.
-        """
-        try:
-            request_states = self.engine.output_processor.request_states
-            req_state = request_states.get(request_id)
-
-            if req_state is None:
-                return {"aborted": False, "error": f"Request {request_id} not found"}
-
-            # Create abort output and put it to the queue
-            from vllm.v1.engine import FinishReason
-
-            request_output = req_state.make_request_output(
-                [], pooling_output=None, finish_reason=FinishReason.ABORT, stop_reason=None
-            )
-            req_state.queue.put(request_output)
-
-            # Abort in output processor and engine core
-            self.engine.output_processor.abort_requests([request_id])
-            await self.engine.engine_core.abort_requests_async([request_id])
-
-            # Try to reset prefix cache to ensure clean state
-            if reset_prefix_cache:
-                await self.clear_kv_cache()
-                logger.info(f"Prefix cache reset after abort request {request_id}")
-
-            logger.info(f"Aborted request: {request_id}")
-            return {"aborted": True, "request_id": request_id}
-
-        except Exception as e:
-            logger.error(f"Error aborting request {request_id}: {e}")
-            return {"aborted": False, "request_id": request_id, "error": str(e)}
 
 
 class vLLMOmniReplica(BaseVLLMReplica):

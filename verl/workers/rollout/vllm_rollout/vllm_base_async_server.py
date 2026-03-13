@@ -27,6 +27,7 @@ BaseVLLMReplica
     Base for multi-node replicas.  Provides launch_servers, sleep,
     abort_all_requests, and abort_request.
 """
+
 import argparse
 import asyncio
 import json
@@ -670,6 +671,7 @@ class BaseVLLMReplica(RolloutReplica):
                     "env_vars": {
                         "RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES": "1",
                         "RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES": "1",
+                        "NCCL_CUMEM_ENABLE": "0",
                     }
                 },
                 name=name,

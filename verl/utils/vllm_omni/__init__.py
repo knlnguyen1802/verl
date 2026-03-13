@@ -11,3 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from .utils import OmniTensorLoRARequest, VLLMOmniHijack
+
+# The contents of vllm/patch.py should not be imported here, because the contents of
+# patch.py should be imported after the vllm LLM instance is created. Therefore,
+# wait until you actually start using it before importing the contents of
+# patch.py separately.
+
+__all__ = [
+    "OmniTensorLoRARequest",
+    "VLLMOmniHijack",
+]

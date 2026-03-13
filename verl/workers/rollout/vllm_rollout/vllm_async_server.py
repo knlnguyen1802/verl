@@ -37,7 +37,7 @@ from verl.utils.profiler import build_vllm_profiler_args
 from verl.utils.tokenizer import normalize_token_ids
 from verl.utils.vllm.vllm_fp8_utils import apply_vllm_fp8_patches
 from verl.workers.config import HFModelConfig, RolloutConfig
-from verl.workers.rollout.replica import RolloutMode, TokenOutput
+from verl.workers.rollout.replica import TokenOutput
 from verl.workers.rollout.utils import get_max_position_embeddings, run_uvicorn
 from verl.workers.rollout.vllm_rollout.utils import (
     VLLM_LORA_INT_ID,
@@ -50,8 +50,6 @@ from verl.workers.rollout.vllm_rollout.vllm_base_async_server import BaseVLLMHtt
 _VLLM_VERSION = version.parse(vllm.__version__)
 
 if _VLLM_VERSION > version.parse("0.11.0"):
-    from vllm.utils.argparse_utils import FlexibleArgumentParser
-
     if _VLLM_VERSION == version.parse("0.12.0"):
         from vllm.entrypoints.harmony_utils import get_encoding
 
@@ -64,7 +62,7 @@ if _VLLM_VERSION > version.parse("0.11.0"):
     if get_encoding is not None and os.getenv("VERL_USE_GPT_OSS", "0") == "1":
         get_encoding()
 else:
-    from vllm.utils import FlexibleArgumentParser
+    pass
 
 
 logger = logging.getLogger(__file__)
@@ -268,8 +266,13 @@ class vLLMHttpServer(BaseVLLMHttpServer):
             # support sglang-style 'max_new_tokens' param
             max_tokens = sampling_params.pop("max_new_tokens")
         else:
-            # Default to a calculation that considers configured lengths
-            max_tokens = self.config.response_length + self.config.prompt_length - len(prompt_ids)
+            # Default to a calculation that considers configured lengths.
+            # Cap max_tokens by response_length to ensure tensor alignment,
+            # and by remaining budget to prevent OOM in multi-turn rollouts.
+            max_tokens = min(
+                self.config.response_length,
+                self.config.prompt_length + self.config.response_length - len(prompt_ids),
+            )
 
         # Clamp max_tokens to the valid range [0, max_possible_tokens]
         max_tokens = max(0, min(max_tokens, max_possible_tokens))

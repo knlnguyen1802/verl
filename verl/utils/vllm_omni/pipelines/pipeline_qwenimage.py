@@ -232,7 +232,7 @@ class QwenImagePipelineWithLogProb(QwenImagePipeline):
 
         all_latents = torch.stack(all_latents, dim=1)
 
-        if all_log_probs[0] is not None:
+        if all_log_probs and all_log_probs[0] is not None:
             all_log_probs = torch.stack(all_log_probs, dim=1)
         else:
             all_log_probs = None

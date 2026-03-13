@@ -32,7 +32,6 @@ class TensorLoRARequest(LoRARequest):
     peft_config: dict = field(default=None)
     lora_tensors: dict = field(default=None)
 
-
 class VLLMHijack:
     @staticmethod
     def hijack():
