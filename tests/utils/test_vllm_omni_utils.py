@@ -14,10 +14,10 @@
 """
 Unit tests for verl/utils/vllm_omni/utils.py.
 
-Since vllm_omni is not available in the CPU test environment, all external
-dependencies are mocked via unittest.mock.  The module is loaded directly from
-its source file (importlib.util.spec_from_file_location) so that the full
-`verl` package initialisation (which requires ray, torch, …) is bypassed.
+All external dependencies (vllm_omni, vllm) are mocked via unittest.mock.
+The module is loaded directly from its source file
+(importlib.util.spec_from_file_location) so that the full verl package
+initialisation (which requires ray, torch, …) is bypassed.
 """
 
 import importlib.util

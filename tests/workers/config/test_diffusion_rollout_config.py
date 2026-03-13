@@ -17,7 +17,7 @@ import pytest
 from verl.workers.config.rollout import DiffusionRolloutConfig, DiffusionSamplingConfig, RolloutConfig
 
 
-class TestDiffusionSamplingConfigCPU:
+class TestDiffusionSamplingConfig:
     def test_default_values(self):
         config = DiffusionSamplingConfig()
         assert config.do_sample is True
@@ -27,7 +27,7 @@ class TestDiffusionSamplingConfigCPU:
         assert config.seed == 42
 
 
-class TestDiffusionRolloutConfigCPU:
+class TestDiffusionRolloutConfig:
     def test_default_values(self):
         config = DiffusionRolloutConfig(name="vllm_omni")
         assert config.name == "vllm_omni"
