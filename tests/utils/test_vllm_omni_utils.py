@@ -28,7 +28,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers — build lightweight fake module trees
 # ---------------------------------------------------------------------------
@@ -146,9 +145,7 @@ def _load_utils_module(patch_dict, fake_manager_cls):
     # Reset the manager mock so tests are isolated
     fake_manager_cls._load_adapter = MagicMock()
 
-    src_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "verl", "utils", "vllm_omni", "utils.py"
-    )
+    src_path = os.path.join(os.path.dirname(__file__), "..", "..", "verl", "utils", "vllm_omni", "utils.py")
     src_path = os.path.abspath(src_path)
 
     spec = importlib.util.spec_from_file_location("verl.utils.vllm_omni.utils", src_path)

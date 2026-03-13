@@ -163,9 +163,7 @@ def test_vllm_omni_http_server_does_not_have_abort_request():
         return
 
     server_cls = mod.vLLMOmniHttpServer
-    assert "abort_request" not in server_cls.__dict__, (
-        "abort_request should have been removed from vLLMOmniHttpServer"
-    )
+    assert "abort_request" not in server_cls.__dict__, "abort_request should have been removed from vLLMOmniHttpServer"
 
 
 def test_vllm_omni_http_server_does_not_have_resume_generation():
