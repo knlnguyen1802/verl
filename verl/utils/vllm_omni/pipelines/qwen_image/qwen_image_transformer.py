@@ -27,6 +27,8 @@ from vllm_omni.diffusion.models.qwen_image.qwen_image_transformer import (
 )
 
 
+# TODO: This is a bug in vLLM-Omni implementation
+# keep this until fix on vLLM-Omni side
 class QwenImageTransformer2DModelFixed(QwenImageTransformer2DModel):
     def __init__(
         self,

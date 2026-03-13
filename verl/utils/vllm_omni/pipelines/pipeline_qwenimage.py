@@ -1,4 +1,4 @@
-# Copyright 2025 Bytedance Ltd. and/or its affiliates
+# Copyright 2026 Bytedance Ltd. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ def _maybe_to_cpu(v):
     return v
 
 
+# Custom pipeline that inherits from QwenImagePipeline and adds log probability outputs during diffusion.
 class QwenImagePipelineWithLogProb(QwenImagePipeline):
     def __init__(self, *, od_config: OmniDiffusionConfig, prefix: str = ""):
         super(QwenImagePipeline, self).__init__()
