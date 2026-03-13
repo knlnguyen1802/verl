@@ -55,7 +55,7 @@ class vLLMOmniServerAdapter(ServerAdapter):
         device_mesh: DeviceMesh,
         replica_rank: int = -1,
     ):
-        super(ServerAdapter, self).__init__(config, model_config, device_mesh)
+        super().__init__(config, model_config, device_mesh)
         self.server_handle: ray.actor.ActorHandle = None
 
         rank = int(os.environ["RANK"])
